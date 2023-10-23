@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 
+
 def iou_stats(iou_time_list):
     iou_time_above_1 = torch.where(iou_time_list > 0.1)
     frac_time_above_1 = iou_time_above_1[0].size()[0] / iou_time_list.size()[0]
@@ -21,6 +22,7 @@ def iou_stats(iou_time_list):
 
     return iou_time_above_1, iou_time_above_3, iou_time_above_5, iou_time_above_7, frac_time_above_1, \
         frac_time_above_3, frac_time_above_5, frac_time_above_7
+
 
 def iou_time(pred_start_time, pred_end_time, start_time, end_time):
     union = torch.max(pred_end_time, end_time) - torch.min(pred_start_time, start_time)
