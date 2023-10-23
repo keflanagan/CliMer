@@ -3,7 +3,7 @@ from pathlib import Path
 
 def create_parser():
     parser = argparse.ArgumentParser(
-        description="Train a temporal grounding model on EPIC-Kitchens data",
+        description="Train a temporal grounding model on a long-form fine-grained video dataset",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--dataset", default="ego4d", type=str, help="which dataset to use, ego4d or epic")
