@@ -11,7 +11,7 @@ elif [ "$1" == "epic" ]; then
     echo 'epic'
 fi
 
-python train_test/evaluation.py \
+python evaluation.py \
     --dataset $DATASET \
     --model-path $MODEL_PATH \
     --video-feature-path $VIDEO_FEATURE_PATH \
