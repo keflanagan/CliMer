@@ -62,7 +62,6 @@ def get_hard_preds(preds, threshold):
 
     # MIN MAX NORMALISATION
     pred_list = (preds - torch.min(preds)) / (torch.max(preds) - torch.min(preds))
-    ###################
     max_pred = torch.max(pred_list)
     pred_list_hard = torch.zeros(pred_list.size(0))
     for j, pred in enumerate(pred_list):
@@ -72,22 +71,19 @@ def get_hard_preds(preds, threshold):
             pred_list_hard[j] = 1
 
     segments = [[]]
-    pos_frames = np.where(pred_list_hard == 1)[0]
+    pos_features = np.where(pred_list_hard == 1)[0]
     count = 0
-    for j, frame in enumerate(pos_frames):
-        if j == 0 or frame - pos_frames[j - 1] == 1:
+    for j, frame in enumerate(pos_features):
+        if j == 0 or frame - pos_features[j - 1] == 1:
             segments[count].append(frame)
         else:
             count += 1
             segments.append([])
             segments[count].append(frame)
 
-    criterion = 'max'
+    max_value = 0
     for j, segment in enumerate(segments):
-        if criterion == 'max':
-            seg_max_value = torch.max(pred_list[segment])
-        if criterion == 'avg':
-            seg_max_value = torch.mean(pred_list[segment])
+        seg_max_value = torch.max(pred_list[segment])
         if j == 0 or seg_max_value > max_value:
             max_segment_idx = j
             max_value = seg_max_value
@@ -98,11 +94,8 @@ def get_hard_preds(preds, threshold):
 
     return final_preds
 
+
 def split_features(features, seg_size, overlap):
-    # divide into lengths of 4000 with overlap of 2000
-    #4000 2000
-    # seg_size = 2000
-    # overlap = 1000
     num_tokens = features.size()[1]
 
     segment_list = []
@@ -119,7 +112,7 @@ def split_features(features, seg_size, overlap):
             idx_end = num_tokens - 1
             idx_start = idx_end - seg_size + 1
 
-        segment = features[:, idx_start:idx_end + 1]
+        segment = features[:, int(idx_start):int(idx_end + 1)]
         feature_idxs = np.arange(idx_start, idx_end + 1)
         segment_list.append(segment)
         feature_idx_list.append(feature_idxs)
@@ -137,7 +130,6 @@ def recombine_preds(preds_list, feature_idx_list, num_features):
         full_feature_idx_list = np.concatenate((full_feature_idx_list, feature_idxs))
 
     full_preds_list = np.array(full_preds_list)
-
     final_preds_list = np.zeros(num_features)
 
     for feature_idx in range(0, num_features):
@@ -146,6 +138,83 @@ def recombine_preds(preds_list, feature_idx_list, num_features):
         final_preds_list[feature_idx] = actual_value
 
     return final_preds_list
+
+
+def get_weights_single_caption(preds_cap_pos_loc, preds_cap_neg_loc, weights_cap, label_caption, preds_cap, i):
+    cap_pos_indices = preds_cap_pos_loc[:, 1][torch.where(preds_cap_pos_loc[:, 0] == i)]
+    cap_neg_indices = preds_cap_neg_loc[:, 1][torch.where(preds_cap_neg_loc[:, 0] == i)]
+
+    weights_cap[i, cap_pos_indices] = cap_neg_indices.size()[0] / \
+        torch.tensor((cap_neg_indices.size()[0] + cap_pos_indices.size()[0]))
+
+    weights_cap[i, cap_neg_indices] = cap_pos_indices.size()[0] / \
+        torch.tensor((cap_neg_indices.size()[0] + cap_pos_indices.size()[0]))
+
+    loss_size_retention_factor_cap = label_caption.size()[1] / \
+        (((cap_pos_indices.size()[0] / label_caption.size()[1]) *
+         cap_neg_indices.size()[0]) * 2)
+
+    return weights_cap, loss_size_retention_factor_cap
+
+
+def get_balanced_loss_single_caption(label_caption1, preds_cap1, criterion_no_reduction, device):
+    weights_cap1 = torch.zeros(label_caption1.size()).to(device)
+    preds_cap1_pos_loc = torch.nonzero(label_caption1)
+    preds_cap1_neg_loc = (label_caption1 == 0).nonzero().squeeze(1)
+
+    loss_size_retention_factor_cap1 = []
+
+    for i in range(label_caption1.size()[0]):
+        weights_cap1, loss_size_retention_factor_cap1_part = \
+            get_weights_single_caption(preds_cap1_pos_loc, preds_cap1_neg_loc, weights_cap1, label_caption1,
+                                       preds_cap1, i)
+
+        loss_size_retention_factor_cap1.append(loss_size_retention_factor_cap1_part)
+
+    loss_size_retention_factor_cap1 = torch.tensor(loss_size_retention_factor_cap1).unsqueeze(1).to(device)
+    individual_loss_cap1 = criterion_no_reduction(preds_cap1, label_caption1)
+    loss_cap1 = torch.mean(
+        torch.mul(torch.mul(weights_cap1, individual_loss_cap1), loss_size_retention_factor_cap1))
+
+    return loss_cap1
+
+
+def get_balanced_loss_batch(label_caption1, label_caption2, preds_cap1, preds_cap2, criterion_no_reduction, device):
+    # positive
+    weights_cap1 = torch.zeros(label_caption1.size()).to(device)
+    preds_cap1_pos_loc = torch.nonzero(label_caption1)
+    preds_cap1_neg_loc = (label_caption1 == 0).nonzero().squeeze(1)
+
+    weights_cap2 = torch.zeros(label_caption2.size()).to(device)
+    preds_cap2_pos_loc = torch.nonzero(label_caption2)
+    preds_cap2_neg_loc = (label_caption2 == 0).nonzero().squeeze(1)
+
+    loss_size_retention_factor_cap1 = []
+    loss_size_retention_factor_cap2 = []
+
+    for i in range(label_caption1.size()[0]):
+        weights_cap1, loss_size_retention_factor_cap1_part = \
+            get_weights_single_caption(preds_cap1_pos_loc, preds_cap1_neg_loc, weights_cap1, label_caption1,
+                                            preds_cap1, i)
+
+        weights_cap2, loss_size_retention_factor_cap2_part = \
+            get_weights_single_caption(preds_cap2_pos_loc, preds_cap2_neg_loc, weights_cap2, label_caption2,
+                                            preds_cap2, i)
+
+        loss_size_retention_factor_cap1.append(loss_size_retention_factor_cap1_part)
+        loss_size_retention_factor_cap2.append(loss_size_retention_factor_cap2_part)
+
+    loss_size_retention_factor_cap1 = torch.tensor(loss_size_retention_factor_cap1).unsqueeze(1).to(device)
+    loss_size_retention_factor_cap2 = torch.tensor(loss_size_retention_factor_cap2).unsqueeze(1).to(device)
+    individual_loss_cap1 = criterion_no_reduction(preds_cap1, label_caption1)
+
+    loss_cap1 = torch.mean(
+        torch.mul(torch.mul(weights_cap1, individual_loss_cap1), loss_size_retention_factor_cap1))
+    individual_loss_cap2 = criterion_no_reduction(preds_cap2, label_caption2)
+    loss_cap2 = torch.mean(
+        torch.mul(torch.mul(weights_cap2, individual_loss_cap2), loss_size_retention_factor_cap2))
+
+    return loss_cap1, loss_cap2
 
 
 def common_class(a, b):

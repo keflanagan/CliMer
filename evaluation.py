@@ -115,7 +115,7 @@ def validate_full_videos(model, test_loader, args, device):
             preds_cap1 = preds_cap1.squeeze(2).detach()
 
         else:
-            feature_segment_list, feature_idx_list = split_features(features, args)
+            feature_segment_list, feature_idx_list = split_features(features, args.seg_size, args.overlap)
             full_pred_list = []
             for feature_segment in feature_segment_list:
                 preds_cap1 = model.predict(feature_segment, bert_features_cap1, num_tokens_cap1, args.val)
@@ -194,91 +194,6 @@ def total_random_baseline(test_loader):
                    f'0.5: {frac_time_above_5},  0.7: {frac_time_above_7},  mR: {mr} \n')
 
     return iou_time_list, captions, pred_times, labels_cap1, feature_idxs, feature_times, clip_start_stop_times
-
-
-def split_features(features, args):
-    seg_size = args.seg_size
-    overlap = args.overlap
-    num_tokens = features.size()[1]
-
-    segment_list = []
-    feature_idx_list = []
-
-    num_segments = int(np.ceil((num_tokens - seg_size) / (seg_size - overlap) + 1))
-
-    for i in range(0, num_segments):
-        idx_start = (seg_size - overlap) * i
-        idx_end = idx_start + seg_size - 1
-
-        # if the last window, then take the last <seg_size> features
-        if idx_end > num_tokens:
-            idx_end = num_tokens - 1
-            idx_start = idx_end - seg_size + 1
-
-        segment = features[:, int(idx_start):int(idx_end+1)]
-        feature_idxs = np.arange(idx_start, idx_end + 1)
-        segment_list.append(segment)
-        feature_idx_list.append(feature_idxs)
-
-    return segment_list, feature_idx_list
-
-
-def get_hard_preds(preds, threshold=0.8):
-    preds = preds.squeeze(0)
-
-    # MIN MAX NORMALISATION
-    pred_list = (preds - torch.min(preds)) / (torch.max(preds) - torch.min(preds))
-    max_pred = torch.max(pred_list)
-    pred_list_hard = torch.zeros(pred_list.size(0))
-    for j, pred in enumerate(pred_list):
-        if pred < max_pred * threshold:
-            pred_list_hard[j] = 0
-        else:
-            pred_list_hard[j] = 1
-
-    segments = [[]]
-    pos_frames = np.where(pred_list_hard == 1)[0]
-    count = 0
-    for j, frame in enumerate(pos_frames):
-        if j == 0 or frame - pos_frames[j - 1] == 1:
-            segments[count].append(frame)
-        else:
-            count += 1
-            segments.append([])
-            segments[count].append(frame)
-
-    max_value = 0
-    for j, segment in enumerate(segments):
-        seg_max_value = torch.max(pred_list[segment])
-        if j == 0 or seg_max_value > max_value:
-            max_segment_idx = j
-            max_value = seg_max_value
-
-    final_preds = np.zeros(pred_list.size(0))
-    final_preds[segments[max_segment_idx]] = 1
-    final_preds = torch.tensor(final_preds)
-
-    return final_preds
-
-
-def recombine_preds(preds_list, feature_idx_list, num_features):
-    full_preds_list = []
-    full_feature_idx_list = np.array([])
-    for pred_list in preds_list:
-        full_preds_list += pred_list[0]
-
-    for feature_idxs in feature_idx_list:
-        full_feature_idx_list = np.concatenate((full_feature_idx_list, feature_idxs))
-
-    full_preds_list = np.array(full_preds_list)
-    final_preds_list = np.zeros(num_features)
-
-    for feature_idx in range(0, num_features):
-        idxs = np.where(full_feature_idx_list == feature_idx)
-        actual_value = np.max(full_preds_list[idxs])
-        final_preds_list[feature_idx] = actual_value
-
-    return final_preds_list
 
 
 if __name__ == "__main__":

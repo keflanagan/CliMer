@@ -21,8 +21,10 @@ from lib.dataset.dataset_ego4d_timestamp import Ego4dDatasetTimestamp
 from lib.dataset.dataset_ego4d_full_video import Ego4dDatasetFullVideo
 from lib.dataset.dataset_epic_timestamp import EpicDatasetTimestamp
 from lib.dataset.dataset_epic_full_video import EpicDatasetFullVideo
-from utils.data_utils import load_omnivore_clip_features, load_omnivore_clip_features_diff_videos, load_all_omnivore_features
-from utils.utils import iou_stats, iou_time, iou_time_based, get_hard_preds, split_features, recombine_preds
+from utils.data_utils import load_omnivore_clip_features, load_omnivore_clip_features_diff_videos, \
+    load_all_omnivore_features
+from utils.utils import iou_stats, iou_time, iou_time_based, get_hard_preds, split_features, recombine_preds, \
+    get_weights_single_caption, get_balanced_loss_single_caption, get_balanced_loss_batch
 
 sys.path.append('..')
 
@@ -215,7 +217,8 @@ class Trainer:
                 preds_no_cap = preds_no_cap.squeeze(2)
 
                 if not self.args.combine:
-                    loss_cap1 = self.get_balanced_loss_single_caption(label_caption1, preds_cap1)
+                    loss_cap1 = get_balanced_loss_single_caption(label_caption1, preds_cap1,
+                                                                 self.criterion_no_reduction, self.device)
                     loss_cap2 = torch.tensor([0])  # JUST A PLACEHOLDER
                     loss_cap3 = self.criterion(preds_cap3, label_caption3).type(torch.FloatTensor)
                     loss_no_cap = self.criterion(preds_no_cap, label_no_caption).type(torch.FloatTensor)
@@ -223,7 +226,8 @@ class Trainer:
                 else:
                     if self.args.balanced:
                         loss_cap1, loss_cap2 \
-                            = self.get_balanced_loss_batch(label_caption1, label_caption2, preds_cap1, preds_cap2)
+                            = get_balanced_loss_batch(label_caption1, label_caption2, preds_cap1, preds_cap2,
+                                                      self.criterion_no_reduction, self.device)
 
                     else:
                         loss_cap1 = self.criterion(preds_cap1, label_caption1).type(torch.FloatTensor)
@@ -361,83 +365,6 @@ class Trainer:
 
         return iou_list, captions_list, preds1_list, labels1_list, feature_idxs_list, feature_times_list, \
             clip_start_stop_time_list
-
-    def get_balanced_loss_batch(self, label_caption1, label_caption2, preds_cap1, preds_cap2):
-        # positive
-        weights_cap1 = torch.zeros(label_caption1.size()).to(self.device)
-        preds_cap1_pos_loc = torch.nonzero(label_caption1)
-        preds_cap1_neg_loc = (label_caption1 == 0).nonzero().squeeze(1)
-
-        weights_cap2 = torch.zeros(label_caption2.size()).to(self.device)
-        preds_cap2_pos_loc = torch.nonzero(label_caption2)
-        preds_cap2_neg_loc = (label_caption2 == 0).nonzero().squeeze(1)
-
-        loss_size_retention_factor_cap1 = []
-        loss_size_retention_factor_cap2 = []
-
-        for i in range(label_caption1.size()[0]):
-            weights_cap1, loss_size_retention_factor_cap1_part = \
-                self.get_weights_single_caption(preds_cap1_pos_loc, preds_cap1_neg_loc, weights_cap1, label_caption1,
-                                                preds_cap1, i)
-
-            weights_cap2, loss_size_retention_factor_cap2_part = \
-                self.get_weights_single_caption(preds_cap2_pos_loc, preds_cap2_neg_loc, weights_cap2, label_caption2,
-                                                preds_cap2, i)
-
-            loss_size_retention_factor_cap1.append(loss_size_retention_factor_cap1_part)
-            loss_size_retention_factor_cap2.append(loss_size_retention_factor_cap2_part)
-
-        loss_size_retention_factor_cap1 = torch.tensor(loss_size_retention_factor_cap1).unsqueeze(1).to(self.device)
-        loss_size_retention_factor_cap2 = torch.tensor(loss_size_retention_factor_cap2).unsqueeze(1).to(self.device)
-        individual_loss_cap1 = self.criterion_no_reduction(preds_cap1, label_caption1)
-
-        loss_cap1 = torch.mean(
-            torch.mul(torch.mul(weights_cap1, individual_loss_cap1), loss_size_retention_factor_cap1))
-        individual_loss_cap2 = self.criterion_no_reduction(preds_cap2, label_caption2)
-        loss_cap2 = torch.mean(
-            torch.mul(torch.mul(weights_cap2, individual_loss_cap2), loss_size_retention_factor_cap2))
-
-        return loss_cap1, loss_cap2
-
-    def get_balanced_loss_single_caption(self, label_caption1, preds_cap1):
-
-        weights_cap1 = torch.zeros(label_caption1.size()).to(self.device)
-        preds_cap1_pos_loc = torch.nonzero(label_caption1)
-        preds_cap1_neg_loc = (label_caption1 == 0).nonzero().squeeze(1)
-
-        loss_size_retention_factor_cap1 = []
-
-        for i in range(label_caption1.size()[0]):
-            weights_cap1, loss_size_retention_factor_cap1_part = \
-                self.get_weights_single_caption(preds_cap1_pos_loc, preds_cap1_neg_loc, weights_cap1, label_caption1,
-                                                preds_cap1, i)
-
-            loss_size_retention_factor_cap1.append(loss_size_retention_factor_cap1_part)
-
-        loss_size_retention_factor_cap1 = torch.tensor(loss_size_retention_factor_cap1).unsqueeze(1).to(self.device)
-        individual_loss_cap1 = self.criterion_no_reduction(preds_cap1, label_caption1)
-        loss_cap1 = torch.mean(
-            torch.mul(torch.mul(weights_cap1, individual_loss_cap1), loss_size_retention_factor_cap1))
-
-        return loss_cap1
-
-    @staticmethod
-    def get_weights_single_caption(preds_cap_pos_loc, preds_cap_neg_loc, weights_cap, label_caption, preds_cap,
-                                         i):
-        cap_pos_indices = preds_cap_pos_loc[:, 1][torch.where(preds_cap_pos_loc[:, 0] == i)]
-        cap_neg_indices = preds_cap_neg_loc[:, 1][torch.where(preds_cap_neg_loc[:, 0] == i)]
-
-        weights_cap[i, cap_pos_indices] = cap_neg_indices.size()[0] / \
-            torch.tensor((cap_neg_indices.size()[0] + cap_pos_indices.size()[0]))
-
-        weights_cap[i, cap_neg_indices] = cap_pos_indices.size()[0] / \
-            torch.tensor((cap_neg_indices.size()[0] + cap_pos_indices.size()[0]))
-
-        loss_size_retention_factor_cap = label_caption.size()[1] / \
-            (((cap_pos_indices.size()[0] / label_caption.size()[1]) *
-             cap_neg_indices.size()[0]) * 2)
-
-        return weights_cap, loss_size_retention_factor_cap
 
 
 def get_summary_writer_log_dir(args: argparse.Namespace) -> str:
