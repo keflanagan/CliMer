@@ -13,7 +13,7 @@ The 'data' folder contains csv files with the annotations for the train, validat
 The Omnivore visual features and the BERT features should be placed in the 'features' directory. Alternatively change the path to your chosen location for the features in the config file(s).
 
 
-###Pretrained
+### Pretrained
 Pretrained models can be found here (insert link)
 ### Training
 To train the model, run the following command, replacing $DATASET with 'ego4d' for the Ego4D dataset and 'epic' for the EPIC-Kitchens dataset
