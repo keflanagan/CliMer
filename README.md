@@ -1,4 +1,4 @@
-# ConTra
+# CliMer
 This repo contains code and data used in the BMVC paper 'Learning Temporal Sentence Grounding
 From Narrated EgoVideos'.
 
