@@ -8,6 +8,12 @@ The Omnivore visual features for the Ego4D and EPIC-Kitchens dataset splits can 
 ## Quick Start Guide
 ### Requirements
 The dependencies can be found in Climer.yml
+
+This is a conda environment and can be installed with the following command:
+
+```
+conda env create -f climer.yml
+```
 ### Ego4D/EPIC-Kitchens Dataset Splits
 The 'data' folder contains csv files with the annotations for the train, validation and test splits for Ego4D and EPIC-Kitchens. It also contains metadata files which contain extra information used during training/testing.
 
