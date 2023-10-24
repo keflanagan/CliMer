@@ -24,7 +24,7 @@ from utils import iou_stats, iou_time, iou_time_based, get_hard_preds, split_fea
 parser = create_parser()
 
 if torch.cuda.is_available():
-    DEVICE = torch.device("cuda:1")
+    DEVICE = torch.device("cuda")
 else:
     DEVICE = torch.device("cpu")
 print('device', DEVICE)
