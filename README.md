@@ -8,8 +8,10 @@ The Omnivore visual features for the Ego4D and EPIC-Kitchens dataset splits can 
 ## Quick Start Guide
 ### Requirements
 The dependencies can be found in Climer.yml
-### Data
+### Ego4D/EPIC-Kitchens Dataset Splits
 The 'data' folder contains csv files with the annotations for the train, validation and test splits for Ego4D and EPIC-Kitchens. It also contains metadata files which contain extra information used during training/testing.
+
+### Features
 The Omnivore visual features and the BERT features should be placed in the 'features' directory. Alternatively change the path to your chosen location for the features in the config file(s).
 
 
