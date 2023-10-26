@@ -3,7 +3,7 @@ This repo contains code and data used in the BMVC paper 'Learning Temporal Sente
 From Narrated EgoVideos'.
 
 ## Features
-The Omnivore visual features for the Ego4D and EPIC-Kitchens dataset splits can be found [here](insert dropbox link).
+The Omnivore visual features and BERT text features for the Ego4D and EPIC-Kitchens dataset splits will be released soon.
 
 ## Quick Start Guide
 ### Requirements
