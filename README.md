@@ -22,7 +22,7 @@ The Omnivore visual features and the BERT features should be placed in the 'feat
 
 
 ### Pretrained
-Pretrained models can be found here (insert link)
+Pretrained models will be released soon.
 ### Training
 To train the model, run the following command, replacing $DATASET with 'ego4d' for the Ego4D dataset and 'epic' for the EPIC-Kitchens dataset
 
