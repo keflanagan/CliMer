@@ -3,7 +3,7 @@ This repo contains code and data used in the BMVC paper 'Learning Temporal Sente
 From Narrated EgoVideos'.
 
 ## Features
-The Omnivore visual features and BERT text features for the Ego4D and EPIC-Kitchens dataset splits will be released soon.
+The visual features are the `omnivore_video_swinl` features as produced for Ego4D. The text features are produced with BERT.
 
 ## Quick Start Guide
 ### Requirements
@@ -20,9 +20,6 @@ The 'data' folder contains csv files with the annotations for the train, validat
 ### Features
 The Omnivore visual features and the BERT features should be placed in the 'features' directory. Alternatively change the path to your chosen location for the features in the config file(s).
 
-
-### Pretrained
-Pretrained models will be released soon.
 ### Training
 To train the model, run the following command, replacing $DATASET with 'ego4d' for the Ego4D dataset and 'epic' for the EPIC-Kitchens dataset
 
